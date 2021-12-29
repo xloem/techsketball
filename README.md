@@ -23,9 +23,10 @@ I propose ensuring the data to be reversed can have its numeric values preserved
 !pip3 install transformers
 !pip3 install flax
 
-from transformers import FlaxT5ForConditionalGeneration
-startng_model_path = 'bigscience/T0pp'
+from transformers import T5Tokenizer, FlaxT5ForConditionalGeneration
+starting_model_path = 't5-base' #'bigscience/T0pp'
 
-model = FlaxT5ForConditionalGeneration.from_pretrained(model_path)
+tokenizer = T5Tokenizer.from_pretrained(starting_model_path) # only for source, not for binary
+model = FlaxT5ForConditionalGeneration.from_pretrained(starting_model_path)
 # does not provide for raw embeddings but matrix is available: where?
 ```
