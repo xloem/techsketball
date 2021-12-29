@@ -12,25 +12,8 @@ Google's systems are accessible on the web to the public for use at https://cola
 
 Here is information on using T5, a model framework that has been successful at language translation: https://huggingface.co/docs/transformers/model_doc/t5
 
+Here is an example colab notebook for training a transformer model on tpus: https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/causal_language_modeling_flax.ipynb
+
 Here is a paper on possibly dropping training memory requirements to their square root.  I'm not sure if I understand things right, but this might mean that input data chunks could be much much longer: https://arxiv.org/abs/2112.05682
 
 I propose ensuring the data to be reversed can have its numeric values preserved by the model, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.  This may mean skipping tokenization, and possibly embedding.  It looks like the simplest way to consider skipping embedding could be to simply alter the embedding weights to have a desired effect (e.g. replace a plane with the identity matrix).
-
-----
-```
-# model import sketch
-!pip3 install deepspeed
-!pip3 install flax
-!pip3 install sentencepiece
-!pip3 install transformers
-
-import jax.tools.colab_tpu
-jax.tools.colab_tpu.setup_tpu()
-
-from transformers import T5Tokenizer, FlaxT5ForConditionalGeneration
-starting_model_path = 't5-base' #'bigscience/T0pp'
-
-tokenizer = T5Tokenizer.from_pretrained(starting_model_path) # only for source, not for binary
-model = FlaxT5ForConditionalGeneration.from_pretrained(starting_model_path)
-# does not provide for raw embeddings but matrix is available: where?
-```
