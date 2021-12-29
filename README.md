@@ -19,8 +19,9 @@ I propose ensuring the data to be reversed can have its numeric values preserved
 ----
 ```
 # model import sketch
-!pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-!pip install deepspeed transformers flax
+!pip3 install deepspeed
+!pip3 install transformers
+!pip3 install flax
 
 from transformers import FlaxT5ForConditionalGeneration
 startng_model_path = 'bigscience/T0pp'
