@@ -10,4 +10,6 @@ once a setup is designed.
 
 Google's systems are accessible on the web at https://colab.research.google.com/
 
+Here is information on using T5, a model framework that has been successful at language translation: https://huggingface.co/docs/transformers/model_doc/t5
+
 I propose providing the data to be reversed as raw embeddings, rather than token ids, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.
