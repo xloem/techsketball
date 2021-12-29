@@ -20,8 +20,9 @@ I propose ensuring the data to be reversed can have its numeric values preserved
 ```
 # model import sketch
 !pip3 install deepspeed
-!pip3 install transformers
 !pip3 install flax
+!pip3 install sentencepiece
+!pip3 install transformers
 
 from transformers import T5Tokenizer, FlaxT5ForConditionalGeneration
 starting_model_path = 't5-base' #'bigscience/T0pp'
