@@ -26,4 +26,6 @@ from transformers import FlaxT5ForConditionalGeneration
 startng_model_path = 'bigscience/T0pp'
 
 model = FlaxT5ForConditionalGeneration.from_pretrained(model_path)
+# explore model properties in interactive environment to find embeddings matrix or view source code of forward function?
+# can raw embeddings be passed to this model class?
 ```
