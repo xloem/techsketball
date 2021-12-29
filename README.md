@@ -17,6 +17,7 @@ Here is a paper on possibly dropping training memory requirements to their squar
 I propose providing the data to be reversed as raw embeddings, rather than token ids, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.
 
 ----
+```
 # model import sketch
 !pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 !pip install deepspeed transformers
@@ -25,3 +26,4 @@ from transformers import FlaxT5ForConditionalGeneration
 startng_model_path = 'bigscience/T0pp'
 
 model = FlaxT5ForConditionalGeneration.from_pretrained(model_path)
+```
