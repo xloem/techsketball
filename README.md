@@ -24,6 +24,9 @@ I propose ensuring the data to be reversed can have its numeric values preserved
 !pip3 install sentencepiece
 !pip3 install transformers
 
+import jax.tools.colab_tpu
+jax.tools.colab_tpu.setup_tpu()
+
 from transformers import T5Tokenizer, FlaxT5ForConditionalGeneration
 starting_model_path = 't5-base' #'bigscience/T0pp'
 
