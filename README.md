@@ -12,4 +12,6 @@ Google's systems are accessible on the web at https://colab.research.google.com/
 
 Here is information on using T5, a model framework that has been successful at language translation: https://huggingface.co/docs/transformers/model_doc/t5
 
+Here is a paper on possibly dropping training memory requirements to their square root.  I'm not sure if I understand things right, but this might mean that input data chunks could be much much longer: https://arxiv.org/abs/2112.05682
+
 I propose providing the data to be reversed as raw embeddings, rather than token ids, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.
