@@ -8,7 +8,7 @@ I have trouble doing things, and don't really know how to do that, so just a few
 I recommend using jax/flax and google cloud, because google has a TPU research program free trail w/ application that could be leveraged for compute
 once a setup is designed.
 
-Google's systems are accessible on the web at https://colab.research.google.com/
+Google's systems are accessible on the web to the public for use at https://colab.research.google.com/
 
 Here is information on using T5, a model framework that has been successful at language translation: https://huggingface.co/docs/transformers/model_doc/t5
 
