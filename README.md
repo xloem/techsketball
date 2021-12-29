@@ -17,3 +17,5 @@ Here is an example colab notebook for training a transformer model on tpus: http
 Here is a paper on possibly dropping training memory requirements to their square root.  I'm not sure if I understand things right, but this might mean that input data chunks could be much much longer: https://arxiv.org/abs/2112.05682
 
 I propose ensuring the data to be reversed can have its numeric values preserved by the model, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.  This may mean skipping tokenization, and possibly embedding.  It looks like the simplest way to consider skipping embedding could be to simply alter the embedding weights to have a desired effect (e.g. replace a plane with the identity matrix).
+
+Here's a link to google's free tpu research program: https://sites.research.google/trc/about/
