@@ -14,7 +14,7 @@ Here is information on using T5, a model framework that has been successful at l
 
 Here is a paper on possibly dropping training memory requirements to their square root.  I'm not sure if I understand things right, but this might mean that input data chunks could be much much longer: https://arxiv.org/abs/2112.05682
 
-I propose providing the data to be reversed as raw embeddings, rather than token ids, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.
+I propose ensuring the data to be reversed can have its numeric values preserved by the model, because many of them may have arithmetic relationships with each other that could be lost in the tokenization process.  This may mean skipping tokenization, and possibly embedding.  It looks like the simplest way to consider skipping embedding could be to simply alter the embedding weights to have a desired effect (e.g. replace a plane with the identity matrix).
 
 ----
 ```
@@ -26,6 +26,5 @@ from transformers import FlaxT5ForConditionalGeneration
 startng_model_path = 'bigscience/T0pp'
 
 model = FlaxT5ForConditionalGeneration.from_pretrained(model_path)
-# explore model properties in interactive environment to find embeddings matrix or view source code of forward function?
-# can raw embeddings be passed to this model class?
+# does not provide for raw embeddings but matrix is available: where?
 ```
