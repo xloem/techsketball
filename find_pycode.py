@@ -20,26 +20,28 @@ class pair_finder:
     def __iter__(self):
         while self.queue:
             hist, item = self.queue.popleft()
-            if isinstance(item, types.FunctionType):
-                try:
-                    src = inspect.getsource(item)
-                    bin = marshal.dumps(item.__code__)
-                    yield bin, src
-                except:
-                    pass
-            elif type(item) in (dict, types.MappingProxyType):
-                self._addnew(*(((*hist, name), key) for name, key in item.items()))
-            elif hasattr(item, '__dict__'):
-                self._addnew((hist, item.__dict__))
-            elif hasattr(item, '__class__'):
-                self._addnew((hist, item.__class__))
-            elif type(item) in (str, types.BuiltinFunctionType, types.BuiltinMethodType) or item in (None,) or hist[-1].startswith('__'):
+            try:
+                if isinstance(item, types.FunctionType):
+                    try:
+                        src = inspect.getsource(item)
+                        bin = marshal.dumps(item.__code__)
+                        yield bin, src
+                    except:
+                        pass
+                elif type(item) in (dict, types.MappingProxyType):
+                    self._addnew(*(((*hist, name), key) for name, key in item.items()))
+                elif hasattr(item, '__dict__'):
+                    self._addnew((hist, item.__dict__))
+                elif hasattr(item, '__class__'):
+                    self._addnew((hist, item.__class__))
+                elif type(item) in (str, types.BuiltinFunctionType, types.BuiltinMethodType) or item in (None,) or hist[-1].startswith('__'):
+                    continue
+                else:
+                    print(hist, type(item))
+                    import pdb; pdb.set_trace()
+                    assert not 'hist, item not recognised type'
+            except ReferenceError:
                 continue
-            else:
-                print(hist, type(item))
-                import pdb; pdb.set_trace()
-                assert not 'hist, item not recognised type'
-
 if __name__ == '__main__':
     for bin, src in pair_finder(globals()):
         print(repr(bin), repr(src))
