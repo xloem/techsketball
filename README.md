@@ -8,6 +8,8 @@ I have trouble doing things, and don't really know how to do that, so just a few
 I recommend using jax/flax and google cloud, because google has a TPU research program free trail w/ application that could be leveraged for compute
 once a setup is designed.
 
+I do NOT normally recommend using google cloud, because your muscle contraction timing will be harvested by javascript to guide your behavior for some of the world's largest marketing computers.
+
 Google's systems are accessible on the web to the public for use at https://colab.research.google.com/
 
 Here is information on using T5, a model framework that has been successful at language translation: https://huggingface.co/docs/transformers/model_doc/t5
