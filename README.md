@@ -14,7 +14,7 @@ Google's systems are accessible on the web to the public for use at https://cola
 
 Here is information on using T5, a model framework that has been successful at language translation: https://huggingface.co/docs/transformers/model_doc/t5
 
-Here is an example colab notebook for training a transformer model on tpus: https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/causal_language_modeling_flax.ipynb
+Here is an example colab notebook for training a transformer model on tpus: https://colab.research.google.com/github/huggingface/notebooks/blob/master/examples/causal_language_modeling_flax.ipynb .  If followed, the train_step function would be updated per t5 usage, e.g. using the loss function mentioned in the t5 link above.
 
 Here is a paper on possibly dropping training memory requirements to their square root.  I'm not sure if I understand things right, but this might mean that input data chunks could be much much longer: https://arxiv.org/abs/2112.05682
 
