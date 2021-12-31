@@ -1,4 +1,6 @@
 # finds pairs of source and bytecode within the current python runtime, to generate data
+# can generate and load sets of 4 files with these data prepped for a translation model
+# generates and loads example files when run (at bottom)
 
 import collections
 import types
@@ -6,6 +8,7 @@ import types
 import inspect # can get source code
 import marshal # can convert functions to their filesystem bytecode
 
+# a generator yielding matching pairs of bytecode and source found by tree exploration from passed objects
 class pair_finder:
     def __init__(self, *initial_objects):
         self.found = set()
@@ -43,6 +46,7 @@ class pair_finder:
             except ReferenceError:
                 continue
 
+# takes some strings and model parameters and generates tensor files for passed objects using above class
 def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True):
     import numpy as np
     with open(f'{pfx}bin.u8.{input_width}vec', 'wb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
@@ -66,6 +70,7 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
     if verbose:
         print()
 
+# loads tensor files using instant memmap and returns them as dict usable as T5 model kwparams
 def read_files(pfx, tokenizerpfx, input_width, label_width):
     import numpy as np
     import mmap
@@ -82,14 +87,20 @@ def read_files(pfx, tokenizerpfx, input_width, label_width):
     )
 
 if __name__ == '__main__':
+    # generates some small files using t5-small's tokenizer, and prints a random byte/src pair from them
     import numpy as np
     from transformers import T5Tokenizer
-    model = 't5-small'
-    tokenizer = T5Tokenizer.from_pretrained(model)
-    tokenizerpfx = model.replace('/','_') + '.'
+    
+    modelname = 't5-small'
+    tokenizer = T5Tokenizer.from_pretrained(modelname)
+    tokenizerpfx = modelname.replace('/','_') + '.'
+    
     write_files('', tokenizerpfx, 512, tokenizer, 512, globals())
+    
     result = read_files('', tokenizerpfx, 512, 512)
+    
     example_idx = np.random.randint(len(result['input_ids']))
+    
     bytecode = result['input_ids'][example_idx][result['attention_mask'][example_idx] != 0].tobytes()
     src = tokenizer.decode(
             result['decoder_input_ids'][example_idx][result['decoder_attention_mask'][example_idx] != 0]
