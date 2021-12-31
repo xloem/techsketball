@@ -95,11 +95,13 @@ if __name__ == '__main__':
     tokenizer = T5Tokenizer.from_pretrained(modelname)
     tokenizerpfx = modelname.replace('/','_') + '.'
     
-    write_files('', tokenizerpfx, 512, tokenizer, 512, globals())
+    write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals())
+    print('Wrote 4 example.* files.')
     
     result = read_files('', tokenizerpfx, 512, 512)
     
     example_idx = np.random.randint(len(result['input_ids']))
+    print(f"Here's pair #{example_idx}:")
     
     bytecode = result['input_ids'][example_idx][result['attention_mask'][example_idx] != 0].tobytes()
     src = tokenizer.decode(
