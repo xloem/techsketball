@@ -45,7 +45,7 @@ class pair_finder:
 
 def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True):
     import numpy as np
-    with open('{pfx}bin.u8.{input_width}vec', 'wb') as itok, open('{pfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}.src.attnmask.u8.{label_width}vec', 'wb') as oattn:
+    with open(f'{pfx}bin.u8.{input_width}vec', 'wb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
         iattn_buf = np.zeros(input_width, dtype=np.uint8)
         for idx, (bin, src) in enumerate(pair_finder(globals())):
             if len(bin) > input_width:
@@ -69,23 +69,31 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
 def read_files(pfx, tokenizerpfx, input_width, label_width):
     import numpy as np
     import mmap
-    with open('{pfx}bin.u8.{input_width}vec', 'rb') as itok, open('{pfx}bin.attnmask.u8.{input_width}vec', 'rb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'rb') as otok, open(f'{pfx}{tokenizerpfx}.src.attnmask.u8.{label_width}vec', 'rb') as oattn:
+    with open(f'{pfx}bin.u8.{input_width}vec', 'rb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'rb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'rb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'rb') as oattn:
         itok = np.frombuffer(mmap.mmap(itok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
-        iattn = np.frombuffer(mmap.mmap(itok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
-        otok = np.frombuffer(mmap.mmap(itok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint16)
-        oattn = np.frombuffer(mmap.mmap(itok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint16)
+        iattn = np.frombuffer(mmap.mmap(iattn.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
+        otok = np.frombuffer(mmap.mmap(otok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint16)
+        oattn = np.frombuffer(mmap.mmap(oattn.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
     return dict(
-        input_ids = itok,
-        attention_mask = iattn,
-        decoder_input_ids = otok,
-        decoder_attention_mask = oattn
+        input_ids = itok.reshape(-1, input_width),
+        attention_mask = iattn.reshape(-1, input_width),
+        decoder_input_ids = otok.reshape(-1, label_width),
+        decoder_attention_mask = oattn.reshape(-1, label_width)
     )
 
 if __name__ == '__main__':
+    import numpy as np
     from transformers import T5Tokenizer
     model = 't5-small'
     tokenizer = T5Tokenizer.from_pretrained(model)
     tokenizerpfx = model.replace('/','_') + '.'
     write_files('', tokenizerpfx, 512, tokenizer, 512, globals())
     result = read_files('', tokenizerpfx, 512, 512)
-    print(result['input_ids'][1].tobytes(), tokenizer.decode(result['decoder_input_ids'][1]))
+    example_idx = np.random.randint(len(result['input_ids']))
+    bytecode = result['input_ids'][example_idx][result['attention_mask'][example_idx] != 0].tobytes()
+    src = tokenizer.decode(
+            result['decoder_input_ids'][example_idx][result['decoder_attention_mask'][example_idx] != 0]
+        )
+    print('Bytes =', bytecode)
+    print('Source:')
+    print(src)
