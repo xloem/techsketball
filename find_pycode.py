@@ -47,8 +47,12 @@ class pair_finder:
                 continue
 
 # takes some strings and model parameters and generates tensor files for passed objects using above class
-def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True):
+def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True, skip_if_exists = False):
     import numpy as np
+    if skip_if_exists:
+        import os
+        if os.path.exists(f'{pfx}bin.u8.{input_width}vec'):
+            return
     with open(f'{pfx}bin.u8.{input_width}vec', 'wb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
         iattn_buf = np.zeros(input_width, dtype=np.uint8)
         for idx, (bin, src) in enumerate(pair_finder(globals())):
@@ -95,7 +99,7 @@ if __name__ == '__main__':
     tokenizer = T5Tokenizer.from_pretrained(modelname)
     tokenizerpfx = modelname.replace('/','_') + '.'
     
-    write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals())
+    write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True)
     print('Wrote 4 example.* files.')
     
     result = read_files('', tokenizerpfx, 512, 512)
