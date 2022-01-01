@@ -51,7 +51,7 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
     import numpy as np
     if skip_if_exists:
         import os
-        if os.path.exists(f'{pfx}bin.u8.{input_width}vec'):
+        if os.path.exists(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec'):
             return
     with open(f'{pfx}bin.u8.{input_width}vec', 'wb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
         iattn_buf = np.zeros(input_width, dtype=np.uint8)
