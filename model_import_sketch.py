@@ -116,7 +116,7 @@ jax.config.update('jax_log_compiles', True)
 dropout_rngs = jax.random.split(rng, jax.local_device_count())
 
 # Define gradient update step fn
-def train_step(state, batch):#input_ids, attention_mask, labels, decoder_input_ids, decoder_attention_mask, dropout_rng):
+def train_step(state, batch, dropout_rng):#input_ids, attention_mask, labels, decoder_input_ids, decoder_attention_mask, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
     def loss_fn(params):
         labels = batch.pop('labels')
@@ -200,7 +200,7 @@ for epoch in epochs:
 
         # Model forward
         model_inputs = flax.training.common_utils.shard(model_inputs)
-        state, train_metric, dropout_rngs = p_train_step(state, **model_inputs, dropout_rng=dropout_rngs)
+        state, train_metric, dropout_rngs = p_train_step(state, model_inputs, dropout_rng=dropout_rngs)
         train_metrics.append(train_metric)
 
         cur_step = epoch * (num_train_samples // train_batch_size) + step
@@ -209,8 +209,8 @@ for epoch in epochs:
             # Save metrics
             train_metric = flax.jax_utils.unreplicate(train_metric)
             train_time += time.time() - train_start
-            if has_tensorboard and jax.process_index() == 0:
-                write_train_metric(summary_writer, train_metrics, train_time, cur_step)
+            #if has_tensorboard and jax.process_index() == 0:
+            #    write_train_metric(summary_writer, train_metrics, train_time, cur_step)
 
             epochs.write(
                 f"Step... ({cur_step} | Loss: {train_metric['loss'].mean()}, Learning Rate: {train_metric['learning_rate'].mean()})"
@@ -219,5 +219,5 @@ for epoch in epochs:
             train_metrics = []
 
 # + id="aGdYRKVJxHxN"
-(while True:
+while True:
   print(repr(eval(input('>>> '), globals(), locals())))
