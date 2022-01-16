@@ -138,7 +138,7 @@ def train_step(state, batch, dropout_rng):#input_ids, attention_mask, labels, de
         # logits, labels, padding_mask=batch['decoder_attention_mask', label_smoothing_factor=0]
         # compute loss
         loss = optax.softmax_cross_entropy(logits, flax.training.common_utils.onehot(labels, logits.shape[-1]))
-        padding_mask = decoder_attention_mask
+        padding_mask = batch['decoder_attention_mask']
         loss = (loss * padding_mask).sum() / padding_mask.sum()
 
         #loss = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True).loss
