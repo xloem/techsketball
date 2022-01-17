@@ -88,8 +88,8 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
         for idx, (bin, src) in enumerate(pair_finder(*initial_objects)):
             if tokenize_binary:
                 bin = tokenizer(bin.decode('iso-8859-1'), padding = 'max_length', return_tensors = 'np', max_length = input_width)
-                iattn_buf = bin['attention_mask']
-                bin = bin['input_ids']
+                iattn_buf = bin['attention_mask'][0]
+                bin = bin['input_ids'][0]
             else:
                 bin = np.frombuffer(bin.ljust(input_width, b'\0'), dtype=np.uint8)
                 iattn_buf[:len(bin)] = 1
