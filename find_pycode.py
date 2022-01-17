@@ -78,7 +78,7 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
         tokenizer = pair_finder(*initial_objects).train_tokenizer(tokenizer, pfx, tokenizerpfx, skip_if_exists = skip_if_exists, vocab_size = vocab_size)
     if skip_if_exists:
         import os
-        if os.path.exists(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec'):
+        if os.path.exists(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec') and os.path.getsize(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec') > 0:
             return
     if tokenize_binary:
         binpfx = tokenizerpfx

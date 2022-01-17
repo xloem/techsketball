@@ -23,8 +23,8 @@ SentencePieceTrainer = BytePreservingSentencePieceTrainer
 
 class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
     def __init__(self, *params, **kwparams):
-        super().__init__(*params, **kwparams)
-        self.byte_to_id = [ super().piece_to_id(chr(x)) for x in range(256) ]
+        spm.SentencePieceProcessor.__init__(self, *params, **kwparams)
+        self.byte_to_id = [ spm.SentencePieceProcessor.piece_to_id(self, chr(x)) for x in range(256) ]
         self.id_to_byte = { self.byte_to_id[x] : x for x in range(256) }
 
     def PieceToId(self, str):
@@ -35,27 +35,27 @@ class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
         if num < 256:
             return num
         else:
-            return super().piece_to_id(str) + 256
+            return spm.SentencePieceProcessor.piece_to_id(self, str) + 256
 
     piece_to_id = PieceToId
     def IdToPiece(self, id):
         if id < 256:
             return chr(id)
         else:
-            return super().id_to_piece(id - 256)
+            return spm.SentencePieceProcessor.id_to_piece(self, id - 256)
     id_to_piece = IdToPiece
 
     def Encode(self, input, out_type=None, **kwparams):
-        if out_type != 'str':
+        if out_type is not str:
             raise NotImplementedError
-        return self.sp_model.Encode(input, out_type=out_type, **kwparams)
+        return spm.SentencePieceProcessor.Encode(self, out_type=out_type, **kwparams)
     encode = Encode
 
     decode = NotImplemented
     Decode = NotImplemented
 
     def GetPieceSize(self):
-        return super().GetPieceSize() + 256
+        return spm.SentencePieceProcessor.GetPieceSize(self) + 256
     get_piece_size = GetPieceSize
     vocab_size = GetPieceSize
 SentencePieceProcessor = BytePreservingSentencePieceProcessor
