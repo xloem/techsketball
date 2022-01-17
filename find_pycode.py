@@ -68,7 +68,7 @@ class pair_finder:
             if os.path.exists(filename) and os.path.getsize(filename) > 0:
                 return filename
         with open(filename, 'wb') as spm_file:
-            spm.SentencePieceTrainer.train(sentence_iterator = (src for bin, src in self), model_writer = spm_file, vocab_size = vocab_size, character_coverage = 1.0, model_type = 'unigram', max_sentence_length = 65536, minloglevel = 0 if verbose else 1, normalization_rule_name = 'identity', remove_extra_whitespaces = False, unk_id = unk_id, bos_id = bos_id, eos_id = eos_id, pad_id = pad_id)
+            spm.SentencePieceTrainer.train(sentence_iterator = (src for bin, src in self), model_writer = spm_file, vocab_size = vocab_size, character_coverage = 1.0, model_type = 'unigram', max_sentence_length = 65536, minloglevel = 0 if verbose else 1, normalization_rule_name = 'identity', remove_extra_whitespaces = False, unk_id = unk_id, bos_id = bos_id, eos_id = eos_id, pad_id = pad_id, byte_fallback = True)
         return filename
 
 # takes some strings and model parameters and generates tensor files for passed objects using above class
