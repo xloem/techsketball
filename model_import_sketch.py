@@ -79,7 +79,7 @@ import scipy
 import find_pycode
 print('getting training data ...')
 tokenizerpfx = starting_model_path.replace('/','_') + '.'
-find_pycode.write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True)
+find_pycode.write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True, tokenize_binary = True)
 train_data = find_pycode.read_files('example.', tokenizerpfx, 512, 512)
 
 # + id="6qTNv8oZwbGS"
