@@ -12,7 +12,7 @@ class BytePreservingSentencePieceTrainer:
     @staticmethod
     def Train(sentence_iterator = None, vocab_size = None, **kwparams):
         def sentence_generator():
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             for byte in range(256):
                 # todo: zero chars should be replaced with a special token
                 yield chr(byte)
@@ -48,7 +48,7 @@ class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
     def Encode(self, input, out_type=None, **kwparams):
         if out_type is not str:
             raise NotImplementedError
-        return spm.SentencePieceProcessor.Encode(self, out_type=out_type, **kwparams)
+        return spm.SentencePieceProcessor.Encode(self, input, out_type=out_type, **kwparams)
     encode = Encode
 
     decode = NotImplemented
