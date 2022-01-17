@@ -59,8 +59,14 @@ jax.local_devices()
 from transformers import T5Tokenizer, FlaxT5ForConditionalGeneration 
 import huggingface_hub
 #repo = huggingface_hub.Repository('local_model', clone_from='hub_model_id')
-tokenizer = T5Tokenizer.from_pretrained(starting_model_path) # only for source, not for binary
-model = FlaxT5ForConditionalGeneration.from_pretrained(starting_model_path)
+try:
+    tokenizer = T5Tokenizer.from_pretrained('local_model')
+except:
+    tokenizer = T5Tokenizer.from_pretrained(starting_model_path)
+try:
+    model = FlaxT5ForConditionalGeneration.from_pretrained('local_model')
+except:
+    model = FlaxT5ForConditionalGeneration.from_pretrained(starting_model_path)
 
 # + id="mZqc_JNhixjS"
 # before data is generated we can import libraries to generate it from
@@ -83,6 +89,7 @@ print('getting training data ...')
 tokenizerpfx = starting_model_path.replace('/','_') + '.'
 find_pycode.write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True, tokenize_binary = True)
 tokenizer.save_pretrained('local_model')
+# repo.push_to_hub(commit_message=f'commit-message', blocking=False)
 train_data = find_pycode.read_files('example.', tokenizerpfx, 512, 512)
 
 # + id="6qTNv8oZwbGS"
