@@ -47,10 +47,11 @@ class pair_finder:
             except ReferenceError:
                 continue
     def train_tokenizer(self, tokenizer, pfx, tokenizerpfx, skip_if_exists = False, verbose = True, vocab_size = None):
+        import bytepreservingsentencepiece as spm
         vocab_size = vocab_size if vocab_size is not None else tokenizer.sp_model.vocab_size()
         filename = self.train_bytespm(pfx, tokenizerpfx, vocab_size, skip_if_exists = skip_if_exists, verbose = verbose, unk_id = tokenizer.unk_token_id, bos_id = tokenizer.bos_token_id, eos_id = tokenizer.eos_token_id, pad_id = tokenizer.pad_token_id)
         tokenizer.vocab_file = filename
-        tokenizer.sp_model.Load(tokenizer.vocab_file)
+        tokenizer.sp_model = spm.BytePreservingSentencePieceProcessor(**tokenizer.sp_model_kwargs, model_file=tokenizer.vocab_file)
         return tokenizer
     def train_bytespm(self, pfx, tokenizerpfx, vocab_size, skip_if_exists = False, verbose = True, unk_id = 0, bos_id = 1, eos_id = 2, pad_id = -1):
         unk_id = unk_id if unk_id is not None else -1
