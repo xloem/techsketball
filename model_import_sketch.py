@@ -57,6 +57,8 @@ jax.local_devices()
 
 # + id="qhJhFJfQAOXG"
 from transformers import T5Tokenizer, FlaxT5ForConditionalGeneration 
+import huggingface_hub
+#repo = huggingface_hub.Repository('local_model', clone_from='hub_model_id')
 tokenizer = T5Tokenizer.from_pretrained(starting_model_path) # only for source, not for binary
 model = FlaxT5ForConditionalGeneration.from_pretrained(starting_model_path)
 
@@ -80,6 +82,7 @@ import find_pycode
 print('getting training data ...')
 tokenizerpfx = starting_model_path.replace('/','_') + '.'
 find_pycode.write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True, tokenize_binary = True)
+tokenizer.save_pretrained('local_model')
 train_data = find_pycode.read_files('example.', tokenizerpfx, 512, 512)
 
 # + id="6qTNv8oZwbGS"
@@ -124,6 +127,7 @@ adamw = optax.adamw(learning_rate=linear_decay_lr_schedule_fn, b1=0.9, b2=0.98, 
 state = flax.training.train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=adamw)
 
 jax.config.update('jax_log_compiles', True)
+
 
 # from run_t5_mlm_flax.py
 dropout_rngs = jax.random.split(rng, jax.local_device_count())
@@ -230,6 +234,12 @@ for epoch in epochs:
             )
 
             train_metrics = []
+        if cur_step % (num_train_samples // 8) == 0:
+            # save checkpoint
+            if jax.process_index() == 0:
+                params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
+                model.save_pretrained('local_model', params=params)
+                # repo.push_to_hub(commit_message=f'commit-message', blocking=False)
 
 # + id="aGdYRKVJxHxN"
 while True:
