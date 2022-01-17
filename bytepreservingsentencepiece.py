@@ -24,8 +24,8 @@ SentencePieceTrainer = BytePreservingSentencePieceTrainer
 class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
     def __init__(self, *params, **kwparams):
         spm.SentencePieceProcessor.__init__(self, *params, **kwparams)
-        self.byte_to_id = [ spm.SentencePieceProcessor.piece_to_id(self, chr(x)) for x in range(256) ]
-        self.id_to_byte = { self.byte_to_id[x] : x for x in range(256) }
+        #self.byte_to_inner_id = [ spm.SentencePieceProcessor.piece_to_id(self, chr(x)) for x in range(256) ]
+        #self.inner_id_to_byte = { self.byte_to_inner_id[x] : x for x in range(256) }
 
     def PieceToId(self, str):
         try:
@@ -58,4 +58,14 @@ class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
         return spm.SentencePieceProcessor.GetPieceSize(self) + 256
     get_piece_size = GetPieceSize
     vocab_size = GetPieceSize
+
+    def bos_id(self):
+        return spm.SentencePieceProcessor.bos_id(self) + 256
+    def eos_id(self):
+        return spm.SentencePieceProcessor.eos_id(self) + 256
+    def pad_id(self):
+        return spm.SentencePieceProcessor.pad_id(self) + 256
+    def unk_id(self):
+        return spm.SentencePieceProcessor.unk_id(self) + 256
+
 SentencePieceProcessor = BytePreservingSentencePieceProcessor
