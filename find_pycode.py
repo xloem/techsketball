@@ -8,6 +8,7 @@ import types
 import inspect # can get source code
 import marshal # can convert functions to their filesystem bytecode
 
+
 # a generator yielding matching pairs of bytecode and source found by tree exploration from passed objects
 class pair_finder:
     def __init__(self, *initial_objects):
@@ -47,11 +48,11 @@ class pair_finder:
                 continue
     def train_tokenizer(self, tokenizer, pfx, tokenizerpfx, skip_if_exists = False, verbose = True, vocab_size = None):
         vocab_size = vocab_size if vocab_size is not None else tokenizer.sp_model.vocab_size()
-        filename = self.train_spm(pfx, tokenizerpfx, vocab_size, skip_if_exists = skip_if_exists, verbose = verbose, unk_id = tokenizer.unk_token_id, bos_id = tokenizer.bos_token_id, eos_id = tokenizer.eos_token_id, pad_id = tokenizer.pad_token_id)
+        filename = self.train_bytespm(pfx, tokenizerpfx, vocab_size, skip_if_exists = skip_if_exists, verbose = verbose, unk_id = tokenizer.unk_token_id, bos_id = tokenizer.bos_token_id, eos_id = tokenizer.eos_token_id, pad_id = tokenizer.pad_token_id)
         tokenizer.vocab_file = filename
         tokenizer.sp_model.Load(tokenizer.vocab_file)
         return tokenizer
-    def train_spm(self, pfx, tokenizerpfx, vocab_size, skip_if_exists = False, verbose = True, unk_id = 0, bos_id = 1, eos_id = 2, pad_id = -1):
+    def train_bytespm(self, pfx, tokenizerpfx, vocab_size, skip_if_exists = False, verbose = True, unk_id = 0, bos_id = 1, eos_id = 2, pad_id = -1):
         unk_id = unk_id if unk_id is not None else -1
         bos_id = bos_id if bos_id is not None else -1
         eos_id = eos_id if eos_id is not None else -1
@@ -60,7 +61,7 @@ class pair_finder:
         # tokenizer.vocab_file = filename
         # pair_finder().train_spm(tokenizer.vocab_file, tokenizer.sp_model.vocab_size())
         # tokenizer.sp_model.Load(tokenizer.vocab_file)
-        import sentencepiece as spm
+        import bytepreservingsentencepiece as spm
         import os
         if skip_if_exists:
             if os.path.exists(filename) and os.path.getsize(filename) > 0:
@@ -70,7 +71,7 @@ class pair_finder:
         return filename
 
 # takes some strings and model parameters and generates tensor files for passed objects using above class
-def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True, skip_if_exists = False, train_tokenizer = False, vocab_size = None):
+def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True, skip_if_exists = False, tokenize_binary = False, train_tokenizer = False, vocab_size = None):
     import numpy as np
     if train_tokenizer:
         tokenizer = pair_finder(*initial_objects).train_tokenizer(tokenizer, pfx, tokenizerpfx, skip_if_exists = skip_if_exists, vocab_size = vocab_size)
@@ -78,17 +79,27 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
         import os
         if os.path.exists(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec'):
             return
-    with open(f'{pfx}bin.u8.{input_width}vec', 'wb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
+    if tokenize_binary:
+        binpfx = tokenizerpfx
+    else:
+        binpfx = ''
+    with open(f'{pfx}{binpfx}bin.u16.{input_width}vec', 'wb') as itok, open(f'{pfx}{binpfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
         iattn_buf = np.zeros(input_width, dtype=np.uint8)
         for idx, (bin, src) in enumerate(pair_finder(*initial_objects)):
+            if tokenize_binary:
+                bin = tokenizer(bin.decode('iso-8859-1'), padding = 'max_length', return_tensors = 'np', max_length = input_width)
+                iattn_buf = bin['attention_mask']
+                bin = bin['input_ids']
+            else:
+                bin = np.frombuffer(bin.ljust(input_width, b'\0'), dtype=np.uint8)
+                iattn_buf[:len(bin)] = 1
+                iattn_buf[len(bin):] = 0
             if len(bin) > input_width:
                 continue
-            srctok = tokenizer(src, padding = 'max_length', return_tensors = 'np')
+            srctok = tokenizer(src, padding = 'max_length', return_tensors = 'np', max_length = label_width)
             if len(srctok['input_ids'][0]) > label_width:
                 continue
-            itok.write(bin.ljust(input_width, b'\0'))
-            iattn_buf[:len(bin)] = 1
-            iattn_buf[len(bin):] = 0
+            itok.write(bin.astype(np.uint16).data)
             iattn.write(iattn_buf.data)
             len1 = otok.write(srctok['input_ids'].astype(np.uint16).data)
             len2 = oattn.write(srctok['attention_mask'].astype(np.uint8).data)
@@ -100,12 +111,16 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
         print()
 
 # loads tensor files using instant memmap and returns them as dict usable as T5 model kwparams
-def read_files(pfx, tokenizerpfx, input_width, label_width):
+def read_files(pfx, tokenizerpfx, input_width, label_width, tokenize_binary = False):
     import numpy as np
     import mmap
     import os
-    with open(f'{pfx}bin.u8.{input_width}vec', 'rb') as itok, open(f'{pfx}bin.attnmask.u8.{input_width}vec', 'rb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'rb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'rb') as oattn:
-        itok = np.frombuffer(mmap.mmap(itok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
+    if tokenize_binary:
+        binpfx = tokenizerpfx
+    else:
+        binpfx = ''
+    with open(f'{pfx}{binpfx}bin.u16.{input_width}vec', 'rb') as itok, open(f'{pfx}{binpfx}bin.attnmask.u8.{input_width}vec', 'rb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'rb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'rb') as oattn:
+        itok = np.frombuffer(mmap.mmap(itok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint16)
         iattn = np.frombuffer(mmap.mmap(iattn.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
         otok = np.frombuffer(mmap.mmap(otok.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint16)
         oattn = np.frombuffer(mmap.mmap(oattn.fileno(), 0, access = mmap.ACCESS_READ, offset = 0), np.uint8)
@@ -126,18 +141,20 @@ if __name__ == '__main__':
     tokenizer = transformers.T5Tokenizer.from_pretrained(modelname)
     tokenizerpfx = modelname.replace('/','_') + '.train.'
     
-    write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), train_tokenizer = True, skip_if_exists = True, vocab_size = 30000)
+    write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), train_tokenizer = True, skip_if_exists = True, tokenize_binary = True, vocab_size = 31000)
     print('Wrote 4 example.* files.')
     
-    result = read_files('example.', tokenizerpfx, 512, 512)
+    result = read_files('example.', tokenizerpfx, 512, 512, tokenize_binary = True)
     
     example_idx = np.random.randint(len(result['input_ids']))
     print(f"Here's pair #{example_idx}:")
     
-    bytecode = result['input_ids'][example_idx][result['attention_mask'][example_idx] != 0].tobytes()
+    bytecode = tokenizer.decode(
+            result['input_ids'][example_idx][result['attention_mask'][example_idx] != 0]
+    ).encode('iso-8859-1')
     src = tokenizer.decode(
             result['decoder_input_ids'][example_idx][result['decoder_attention_mask'][example_idx] != 0]
-        )
+    )
     print('Bytes =', bytecode)
     print('Source:')
     print(src)
