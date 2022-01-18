@@ -1,6 +1,6 @@
 import transformers
 
-import bytepresevingsentencepiece as spm
+import bytepreservingsentencepiece as spm
 
 class Model:
     def __init__(self, model = 'baffo32/pyc2py_alpha'):
