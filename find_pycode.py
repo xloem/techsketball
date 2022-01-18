@@ -68,7 +68,7 @@ class pair_finder:
             if os.path.exists(filename) and os.path.getsize(filename) > 0:
                 return filename
         with open(filename, 'wb') as spm_file:
-            spm.SentencePieceTrainer.train(sentence_iterator = (src for bin, src in self), model_writer = spm_file, vocab_size = vocab_size, character_coverage = 1.0, model_type = 'unigram', max_sentence_length = 65536, minloglevel = 0 if verbose else 1, normalization_rule_name = 'identity', remove_extra_whitespaces = False, unk_id = unk_id, bos_id = bos_id, eos_id = eos_id, pad_id = pad_id, byte_fallback = True)
+            spm.SentencePieceTrainer.train(sentence_iterator = (src for bin, src in self), model_writer = spm_file, vocab_size = vocab_size, character_coverage = 1.0, model_type = 'unigram', max_sentence_length = 65536, minloglevel = 0 if verbose else 1, unk_id = unk_id, bos_id = bos_id, eos_id = eos_id, pad_id = pad_id)
         return filename
 
 # takes some strings and model parameters and generates tensor files for passed objects using above class
@@ -88,9 +88,12 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
         iattn_buf = np.zeros(input_width, dtype=np.uint8)
         for idx, (bin, src) in enumerate(pair_finder(*initial_objects)):
             if tokenize_binary:
-                bin = tokenizer(bin.decode('iso-8859-1'), padding = 'max_length', return_tensors = 'np', max_length = input_width)
-                iattn_buf[:] = bin['attention_mask'][0][:len(iattn_buf)]
-                bin = bin['input_ids'][0]
+                bin_tokenized = tokenizer(bin.decode('iso-8859-1'), padding = 'max_length', return_tensors = 'np', max_length = input_width)
+                iattn_buf[:] = bin_tokenized['attention_mask'][0][:len(iattn_buf)]
+                # this assertion doesn't presently pass
+                # notably spaces with a following quote have a space lopped off
+                #assert tokenizer.decode(bin_tokenized['input_ids'][0], skip_special_tokens = True).encode('iso-8859-1') == bin
+                bin = bin_tokenized['input_ids'][0]
             else:
                 bin = np.frombuffer(bin.ljust(input_width, b'\0'), dtype=np.uint8)
                 iattn_buf[:len(bin)] = 1

@@ -4,7 +4,14 @@ import numpy as np
 class BytePreservingSentencePieceTrainer:
     @staticmethod
     def Train(sentence_iterator = None, vocab_size = None, **kwparams):
-        return spm.SentencePieceTrainer.Train(sentence_iterator = sentence_generator(), vocab_size = vocab_size - 256, **kwparams)
+        for sym_id in 'unk_id eos_id bos_id pad_id'.split(' '):
+            if sym_id in kwparams and kwparams[sym_id] >= 0 and kwparams[sym_id] < 256:
+                kwparams[sym_id] += 256
+        def sentence_generator():
+            for x in range(256):
+                yield chr(x)
+            yield from sentence_iterator
+        return spm.SentencePieceTrainer.Train(sentence_iterator = sentence_generator(), vocab_size = vocab_size, **kwparams, normalization_rule_name = 'identity', remove_extra_whitespaces = False, byte_fallback = True)
     train = Train
 SentencePieceTrainer = BytePreservingSentencePieceTrainer
 
@@ -16,9 +23,31 @@ class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
                 spm.SentencePieceProcessor.encode(self, '\x00' + chr(x))[idx]
                 for x in range(256)
         ])
-        self.inner_id_to_outer_id = np.arange(self.vocab_size()) + 256
-        for ord, inner_id in enumerate(self.ord_to_inner_id):
-            self.inner_id_to_outer_id[inner_id] = ord
+        self.inner_id_to_outer_id = np.arange(self.vocab_size())
+        available_high_ids = set()
+        needs_mapping_queue = [(inner_id, ord) for ord, inner_id in enumerate(self.ord_to_inner_id)]
+        already_mapped_ids = set()
+        while len(needs_mapping_queue):
+            inner_id, destination = needs_mapping_queue.pop()
+            if destination is None:
+                if len(available_high_ids) == 0:
+                    needs_mapping_queue.insert(0, (inner_id, destination))
+                    continue
+                destination = available_high_ids.pop()
+            self.inner_id_to_outer_id[inner_id] = destination
+            if inner_id >= 256:
+                available_high_ids.add(inner_id)
+            already_mapped_ids.add(inner_id)
+            if destination not in already_mapped_ids:
+                needs_mapping_queue.append((destination, None))
+
+        #for ord, inner_id in enumerate(self.ord_to_inner_id):
+        #    if ord != inner_id:
+        #        if inner_id >= 256:
+        #            self.inner_id_to_outer_id[inner_id] = ord
+        #            self.inner_id_to_outer_id[ord] = inner_id
+        #        else:
+
 
     def PieceToId(self, str):
         return self.inner_id_to_outer_id[super().piece_to_id(str)].item()
@@ -28,7 +57,7 @@ class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
         if id < 256:
             return chr(id)
         else:
-            return spm.SentencePieceProcessor.id_to_piece(self, id - 256)
+            return spm.SentencePieceProcessor.id_to_piece(self, id)
     id_to_piece = IdToPiece
 
     def Encode(self, input, out_type=None, **kwparams):
@@ -41,33 +70,21 @@ class BytePreservingSentencePieceProcessor(spm.SentencePieceProcessor):
     Decode = NotImplemented
 
     def GetPieceSize(self):
-        return spm.SentencePieceProcessor.GetPieceSize(self) + 256
+        return spm.SentencePieceProcessor.GetPieceSize(self)
     get_piece_size = GetPieceSize
     vocab_size = GetPieceSize
 
     def bos_id(self):
         bos_id = spm.SentencePieceProcessor.bos_id(self)
-        if bos_id >= 0:
-            return bos_id + 256
-        else:
-            return bos_id
+        return self.inner_id_to_outer_id(bos_id).item()
     def eos_id(self):
         eos_id = spm.SentencePieceProcessor.eos_id(self)
-        if eos_id >= 0:
-            return eos_id + 256
-        else:
-            return eos_id
+        return self.inner_id_to_outer_id(eos_id).item()
     def pad_id(self):
         pad_id = spm.SentencePieceProcessor.pad_id(self)
-        if pad_id >= 0:
-            return pad_id + 256
-        else:
-            return pad_id
+        return self.inner_id_to_outer_id(pad_id).item()
     def unk_id(self):
         unk_id = spm.SentencePieceProcessor.unk_id(self)
-        if unk_id >= 0:
-            return unk_id + 256
-        else:
-            return unk_id
+        return self.inner_id_to_outer_id(unk_id).item()
 
 SentencePieceProcessor = BytePreservingSentencePieceProcessor
