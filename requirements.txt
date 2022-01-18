@@ -1,0 +1,4 @@
+flax
+sentencepiece
+transformers
+deb-pkg-tools[memcached]
