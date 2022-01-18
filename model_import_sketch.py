@@ -14,7 +14,7 @@
 # + [markdown] id="view-in-github" colab_type="text"
 # <a href="https://colab.research.google.com/github/xloem/techsketball/blob/wip/model_import_sketch.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
-# + colab={"base_uri": "https://localhost:8080/"} id="nH1Ld_vd9wyx" outputId="c40a7044-01cc-4cc2-935f-8fdfc5793548"
+# + colab={"base_uri": "https://localhost:8080/"} id="nH1Ld_vd9wyx" outputId="c008454e-408e-4a0b-84a0-a6352fb64b97"
 #[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/googlecolab/colabtools/blob/master/notebooks/colab-github-demo.ipynb)
 
 import jax
@@ -22,11 +22,12 @@ import jax
 starting_model_path = 't5-base'#'t5-small'#'bigscience/T0pp'
 input_width = 512
 # these are not t5 parameters?
-train_batch_size = 20 # small for notebook
+train_batch_size = 19 # small for notebook
 per_device_batch_size = train_batch_size // jax.device_count()
-num_epochs = 10
+num_epochs = 2
 training_seed = 0
 learning_rate = 3e-4
+logging_steps = 1
 
 
 # #!pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
@@ -36,7 +37,7 @@ learning_rate = 3e-4
 # !pip3 install sentencepiece
 # !git clone https://github.com/xloem/techsketball && ln -s techsketball/* .
 
-# + colab={"base_uri": "https://localhost:8080/"} id="mTGBjrXoX2eS" outputId="4a7b7590-2846-4ac4-822d-a9a540cbafa8"
+# + colab={"base_uri": "https://localhost:8080/"} id="mTGBjrXoX2eS" outputId="22c28867-42cb-4243-a38d-f542c7429fc4"
 import jax.tools.colab_tpu
 import jaxlib
 import os
@@ -83,14 +84,14 @@ import os
 import transformers
 import scipy
 
-# + id="QnyDTDt_f1fE" outputId="6252ccb7-ed2a-4db8-edcb-0ac73bb3dfad" colab={"base_uri": "https://localhost:8080/"}
+# + colab={"base_uri": "https://localhost:8080/"} id="QnyDTDt_f1fE" outputId="d188fe83-dfe6-4da4-d332-1dec5d5106bc"
 import find_pycode
 print('getting training data ...')
 tokenizerpfx = starting_model_path.replace('/','_') + '.'
-find_pycode.write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True, tokenize_binary = True)
+find_pycode.write_files('example.', tokenizerpfx, 512, tokenizer, 512, globals(), skip_if_exists = True, train_tokenizer = True, tokenize_binary = True)
 tokenizer.save_pretrained('local_model')
 # repo.push_to_hub(commit_message=f'commit-message', blocking=False)
-train_data = find_pycode.read_files('example.', tokenizerpfx, 512, 512)
+train_data = find_pycode.read_files('example.', tokenizerpfx, 512, 512, tokenize_binary = True)
 
 # + id="6qTNv8oZwbGS"
 #from tokenizers import ByteLevelBPETokenizer
@@ -127,7 +128,7 @@ def batch_from_indices(dataset : dict, indices):
   return result
 
 
-# + id="m58ESSevKp6P" outputId="19801cbf-211d-43f5-e143-3b1ad233e1d5" colab={"base_uri": "https://localhost:8080/"}
+# + colab={"base_uri": "https://localhost:8080/"} id="m58ESSevKp6P" outputId="2a3ded9e-fd0d-447c-e947-d68d9dd986cd"
 # these are not t5 parameters?
 linear_decay_lr_schedule_fn = optax.linear_schedule(init_value=learning_rate, end_value=0, transition_steps=num_train_steps)
 adamw = optax.adamw(learning_rate=linear_decay_lr_schedule_fn, b1=0.9, b2=0.98, eps=1e-8, weight_decay=0.01)
@@ -197,7 +198,7 @@ train_metric = flax.jax_utils.unreplicate(train_metric)
 print('Done.  First loss was', train_metric['loss'].mean())
 
 
-# + id="doKKw-W345Zn" outputId="dd3510d2-b9b7-485a-8ef9-6ccad799bed9" colab={"base_uri": "https://localhost:8080/"}
+# + id="doKKw-W345Zn"
 
 
 train_time = 0
@@ -216,7 +217,8 @@ for epoch in epochs:
     #train_batch_idx = generate_batch_splits(train_samples_idx, train_batch_size)
 
     # Gather the indexes for creating the batch and do a training step
-    for step, batch_idx in enumerate(tqdm.tqdm(range(num_train_samples // train_batch_size), desc="Training...", position=1)):
+    batches_tqdm = tqdm.tqdm(range(num_train_samples // train_batch_size), desc="Training...", position=1)
+    for step, batch_idx in enumerate(batches_tqdm):
         #samples = [tokenized_datasets["train"][int(idx)] for idx in batch_idx]
         model_inputs = batch_from_indices(train_data, train_samples_idx[train_batch_size * batch_idx:train_batch_size * batch_idx + train_batch_size])
         #print('model_inputs are', {key:val.shape for key, val in model_inputs.items()})
@@ -229,7 +231,7 @@ for epoch in epochs:
 
         cur_step = epoch * (num_train_samples // train_batch_size) + step
 
-        if cur_step % training_args.logging_steps == 0 and cur_step > 0 and jax.process_index() == 0:
+        if cur_step % logging_steps == 0 and cur_step > 0 and jax.process_index() == 0:
             # Save metrics
             train_metric = flax.jax_utils.unreplicate(train_metric)
             train_time += time.time() - train_start
@@ -241,7 +243,7 @@ for epoch in epochs:
             )
 
             train_metrics = []
-        if cur_step % (num_train_samples // 8) == 0:
+        #if cur_step % (num_train_samples // 8) == 0:
             # save checkpoint
             if jax.process_index() == 0:
                 params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
