@@ -12,7 +12,7 @@ class Model:
         output = self.model.generate(tokenized_input, pad_token_id=self.tokenizer.pad_token_id, do_sample=True)
         return self.tokenizer.decode(output, skip_special_tokens=True)
     @staticmethod
-    def bytecode(self, func):
+    def bytecode(func):
         import marshal
         return marshal.dumps(func.__code__)
 
