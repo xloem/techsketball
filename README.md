@@ -23,6 +23,34 @@ I propose ensuring the data to be reversed can have its numeric values preserved
 Here's a link to google's free tpu research program: https://sites.research.google/trc/about/
 
 ---
-Pending concerns:
+Recorded issues:
 
-- A new tokenization strategy is needed, to preserve the information of embedded strings.  This will significantly simplify the training.
+Overall end goal: Make it easy for humans to duplicate and comprehend complex objects, even if it is very slow to do so.  i.e. utility.
+
+Possible next goal: Verify an approach works.
+
+A good next step might be speed, likely low-end cloud tpus as being more generally reusable, to approach verification more rapidly.
+
+Speed:
+- [ ] I have not set up training for google cloud tpus or for decentralization.
+- [ ] Training a new tokenizer significantly slows training.  For preserving bytes, it would be better to reuse the existing tokens the model has.
+
+Indications of Error:
+- [ ] The bytestokenizer does not preserve data perfectly, which could cause small problems.  For
+ example, "  '" may be turned into " '" when detokenized.  The behavior may be inside sentencepiece.
+- [ ] Using the custom tokenizer, less data appears loaded, implying some is lengthened.  This shouldn't be the case.
+
+Effectiveness:
+- [ ] The notebook does training, but does not automatically store its model anywhere, which would be a great addition to not lose time spent training.
+- [ ] When using a new tokenizer, should the embeddings be randomized before retraining?
+- [ ] The tokenizer is trained on single-language data which reduces reusability of the model.
+- [ ] Have not yet added fixing an axis of embeddings to be proportional to byte values.
+
+Utility of use:
+- [ ] The tokenizer is wrapped in a custom class, which makes the generated model harder to use.  The behaviors of the custom class could be simplified into the embedding layer of the model.
+- [ ] The example of pyc->py is not useful.  A different source language would be more useful.
+- [ ] There is no supporting code for using a model yet.  It would be helpful to have maybe a class that retrieves a model and uses it.
+
+Utility of development:
+- [ ] The training code is copypasta.
+- [ ] There is no packaging.
