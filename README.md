@@ -33,7 +33,7 @@ A good next step might be speed, likely low-end cloud tpus as being more general
 
 Speed:
 - [ ] I have not set up training for google cloud tpus or for decentralization, or even shrunk the model compilation so it doesn't time out in colab for tpus.
-  - [ ] when using tpus, store the model precompiled: `from jax.experimental.compilation_cache import compilation_cache as cc; cc.initialize_cache("/path/name/here", max_cache_size_bytes=32 * 2**30)`
+  - [ ] when using tpus, store the model precompiled: `from jax.experimental.compilation_cache import compilation_cache as cc; cc.initialize_cache("/path/name/here", max_cache_size_bytes=32 * 2**30). using the compilation cache, a model could possibly be compiled on cloud sdk and then used in notebooks.
 - [ ] Training a new tokenizer significantly slows training.  For preserving bytes, it would be better to reuse the existing tokens the model has.
 
 Indications of Error:
