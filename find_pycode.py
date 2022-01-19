@@ -72,7 +72,7 @@ class pair_finder:
         return filename
 
 # takes some strings and model parameters and generates tensor files for passed objects using above class
-def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True, skip_if_exists = False, tokenize_binary = False, train_tokenizer = False, vocab_size = None):
+def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial_objects, verbose = True, skip_if_exists = False, tokenize_binary = False, tokenize_source = True, train_tokenizer = False, vocab_size = None, excluded_strings = ['@']):
     import numpy as np
     if train_tokenizer:
         tokenizer = pair_finder(*initial_objects).train_tokenizer(tokenizer, pfx, tokenizerpfx, skip_if_exists = skip_if_exists, vocab_size = vocab_size)
@@ -87,6 +87,8 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
     with open(f'{pfx}{binpfx}bin.u16.{input_width}vec', 'wb') as itok, open(f'{pfx}{binpfx}bin.attnmask.u8.{input_width}vec', 'wb') as iattn, open(f'{pfx}{tokenizerpfx}src.u16.{label_width}vec', 'wb') as otok, open(f'{pfx}{tokenizerpfx}src.attnmask.u8.{label_width}vec', 'wb') as oattn:
         iattn_buf = np.zeros(input_width, dtype=np.uint8)
         for idx, (bin, src) in enumerate(pair_finder(*initial_objects)):
+            if any((excluded_string in src for excluded_string in excluded_strings)):
+                continue
             if tokenize_binary:
                 bin_tokenized = tokenizer(bin.decode('iso-8859-1'), padding = 'max_length', return_tensors = 'np', max_length = input_width)
                 iattn_buf[:] = bin_tokenized['attention_mask'][0][:len(iattn_buf)]
@@ -100,7 +102,10 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
                 iattn_buf[len(bin):] = 0
             if len(bin) > input_width:
                 continue
-            srctok = tokenizer(src, padding = 'max_length', return_tensors = 'np', max_length = label_width)
+            if tokenize_source:
+                srctok = tokenizer(src, padding = 'max_length', return_tensors = 'np', max_length = label_width)
+            else:
+                srctok = np.frombuffer(src.encode('iso-8859-1'), dtype=np.uint8)
             if len(srctok['input_ids'][0]) > label_width:
                 continue
             itok.write(bin.astype(np.uint16).data)
