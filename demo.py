@@ -26,8 +26,9 @@ if __name__ == '__main__':
     Model.set_default_backend()#'cpu')#'gpu')#'tpu')
     model = Model()
 
-    def example_sum(a, b):
-        return a + b
+    def example_sum(left, right):
+        sum = left + right
+        return sum
 
     import inspect
     print(inspect.getsource(example_sum))
