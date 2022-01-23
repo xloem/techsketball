@@ -10,22 +10,27 @@ import elftools.elf.elffile # pyelftools
 class Packages:
     def __init__(self, sources = (
             (
+                'deb deb-src',
                 'http://ftp.debian.org/debian bullseye main contrib non-free',
                 keys.debian_bullseye_release,
                 'all,amd64,arm64,armel,armhf,i386,mips64el,mipsel,ppc64el,s390x'
             ), (
+                'deb deb-src',
                 'http://debug.mirrors.debian.org/debian-debug bullseye-debug main contrib non-free',
                 keys.debian_bullseye_release,
                 'all,amd64,arm64,armel,armhf,i386,mips64el,mipsel,ppc64el,s390x'
             ), (
+                'deb deb-src',
                 'http://ftp.ubuntu.com/ubuntu focal main multiverse restricted universe',
                 keys.ubuntu_archive_2018,
                 'amd64,i386'
             ), (
+                'deb deb-src',
                 'http://ports.ubuntu.com/ubuntu-ports focal main multiverse restricted universe',
                 keys.ubuntu_archive_2018,
                 'arm64,armhf,ppc64el,riscv64,s390x'
             ), (
+                'deb',
                 'http://ddebs.ubuntu.com/ focal main multiverse restricted universe',
                 keys.ubuntu_dbgsym_2016,
                 'amd64,arm64,armhf,i386,ppc64el,riscv64,s390x'
@@ -41,10 +46,11 @@ class Packages:
         os.makedirs(os.path.join(self.etc_dir, 'preferences.d'), exist_ok = True)
         self.cache_dir = os.path.join(self.root_dir, 'var', 'cache')
         self.archs = set()
+        self.src_sites = set()
         with open(os.path.join(self.etc_dir, 'sources.list'), 'wt') as sourceslist_file:
             apt.apt_pkg.config['Dir::Etc::SourceList'] = os.path.basename(sourceslist_file.name)
     
-            for dist, key, archs in sources:
+            for debtypes, dist, key, archs in sources:
                 self.archs.update(archs.split(','))
                 if type(key) is str:
                     key = keys.asc2bin(key)
@@ -52,7 +58,14 @@ class Packages:
                 keyfilename = os.path.join(self.state_dir, distname + '.pgp')
                 with open(keyfilename, 'wb') as keyfile:
                     keyfile.write(key)
-                sourceslist_file.write(f'deb [arch={archs} signed-by={keyfilename}] {dist}\ndeb-src [signed-by={keyfilename}] {dist}\n')
+                for debtype in debtypes.split(' '):
+                    if debtype == 'deb-src':
+                        arch = ''
+                        host = dist.split('://', 1)[1].split('/')[0]
+                        self.src_sites.add(host)
+                    else:
+                        arch = f'arch={archs} '
+                    sourceslist_file.write(f'{debtype} [{arch}signed-by={keyfilename}] {dist}\n')
     
         apt.apt_pkg.config['Apt::Architectures'] = ' '.join(self.archs)
     
@@ -111,7 +124,11 @@ class Packages:
         source_dir = os.path.join(self.root_dir, 'dl', dbgver.source_name + '-' + dbgver.source_version)
         if not os.path.exists(source_dir):
             os.makedirs(source_dir)
-            source_path = dbgver.fetch_source(
+            if dbgver.origins[0].site in self.src_sites:
+                srcver = dbgver
+            else:
+                srcver = pkgver
+            source_path = srcver.fetch_source(
                     destdir = source_dir,
                     unpack = True,
                     progress = apt.progress.text.AcquireProgress()
@@ -120,11 +137,11 @@ class Packages:
         return binary_debfn, debug_debfn, source_path
     def debdwarf(self, debfn):
         deb = apt.debfile.DebPackage(debfn)
-        for file in deb.filelist:
-            if file.endswith('.debug'):
-                elfbytes = deb._debfile.data.extractdata(file)
+        for filename in deb.filelist:
+            if filename.endswith('.debug'):
+                elfbytes = deb._debfile.data.extractdata(filename)
                 dwarf = DWARF(io.BytesIO(elfbytes))
-                print(dwarf.filenames)
+                print(filename, dwarf.filenames)
 
 class DWARF:
     # based on https://github.com/eliben/pyelftools/blob/master/examples/dwarf_decode_address.py 2021-01
@@ -170,7 +187,7 @@ class DWARF:
                     filename = lineprog['file_entry'][prevstate.file - 1].name
                     if filename not in self.address_line_range_pairs_by_file:
                         self.address_line_range_pairs_by_file[filename] = []
-                    self.address_line_range_pairs_by_file.append((prevstate.address, entry.state.address), (prevstate.line, entry.state.line))
+                    self.address_line_range_pairs_by_file[filename].append(((prevstate.address, entry.state.address), (prevstate.line, entry.state.line)))
                 if entry.state.end_sequence:
                     # For the state with `end_sequence`, `address` means the address
                     # of the first byte after the target machine instruction
