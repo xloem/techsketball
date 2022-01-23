@@ -107,7 +107,7 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
                 if len(srctok['input_ids'][0]) > label_width:
                     continue
             else:
-                srctok = np.frombuffer(src.encode('iso-8859-1'), dtype=np.uint8)
+                srctok = np.frombuffer(src.encode(), dtype=np.uint8)
                 if len(srctok) > label_width:
                     continue
                 srctok = {
