@@ -103,11 +103,17 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
             if len(bin) > input_width:
                 continue
             if tokenize_source:
-                srctok = tokenizer(src, padding = 'max_length', return_tensors = 'np', max_length = label_width)
+                srctok = tokenizer(src, padding = 'max_length', return_tensors = 'np', max_length = label_width)[0]
+                if len(srctok['input_ids'][0]) > label_width:
+                    continue
             else:
                 srctok = np.frombuffer(src.encode('iso-8859-1'), dtype=np.uint8)
-            if len(srctok['input_ids'][0]) > label_width:
-                continue
+                if len(srctok) > label_width:
+                    continue
+                srctok = {
+                    'input_ids': np.array([jnp.concatenate((srctok, jnp.zeros(label_width - len(srctok), dtype=np.uint8)))])
+                    'attention_mask': np.array([jnp.concatenate((jnp.ones(len(srctok), dtype=np.uint8), jnp.zeros(label_width - len(srctok), dtype=np.uint8)))])
+                }
             itok.write(bin.astype(np.uint16).data)
             iattn.write(iattn_buf.data)
             len1 = otok.write(srctok['input_ids'].astype(np.uint16).data)
