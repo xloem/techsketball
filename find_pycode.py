@@ -111,7 +111,7 @@ def write_files(pfx, tokenizerpfx, input_width, tokenizer, label_width, *initial
                 if len(srctok) > label_width:
                     continue
                 srctok = {
-                    'input_ids': np.array([jnp.concatenate((srctok, jnp.zeros(label_width - len(srctok), dtype=np.uint8)))])
+                    'input_ids': np.array([jnp.concatenate((srctok, jnp.zeros(label_width - len(srctok), dtype=np.uint8)))]),
                     'attention_mask': np.array([jnp.concatenate((jnp.ones(len(srctok), dtype=np.uint8), jnp.zeros(label_width - len(srctok), dtype=np.uint8)))])
                 }
             itok.write(bin.astype(np.uint16).data)
