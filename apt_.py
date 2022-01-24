@@ -72,7 +72,7 @@ class Packages:
         apt.apt_pkg.init_system()
     
         cache = apt.cache.Cache(apt.progress.text.OpProgress(), rootdir = self.root_dir)
-        #cache.update(apt.progress.text.AcquireProgress())
+        cache.update(apt.progress.text.AcquireProgress())
         cache.open()
         self.cache = cache
 
@@ -108,7 +108,7 @@ class Packages:
             for dbgver in dbgpkg.versions:
                 if dbgver.version == pkgver.version:
                     yield ((pkg, pkgver), (dbgpkg, dbgver))
-                    break # step into the package iteration?
+                    break
     def extract(self, pkg, dbg):
         pkg, pkgver = pkg
         dbg, dbgver = dbg
