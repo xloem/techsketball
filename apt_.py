@@ -136,23 +136,29 @@ class Package:
             destdir = self.pkg_dir,
             progress = apt.progress.text.AcquireProgress()
         )
+        print(f'Parsing {self.pkg_deb} ...')
         self.pkg_deb = apt.debfile.DebPackage(self.pkg_deb)
+        self.pkg_fns = self.pkg_deb.filelist
+
+        print(f'Parsing {self.dbg_deb.filename} ...')
         self.dbg_deb = apt.debfile.DebPackage(self.dbg_deb)
+        self.dbg_fns = self.dbg_deb.filelist
 
         # map dbg info to binaries
         self.dbgfn_by_pkgfn = {}
-        for pkgfn in self.pkg_deb.filelist:
+        for pkgfn in self.pkg_fns:
             stream = self.debfnstream(self.pkg_deb, pkgfn)
             for buildid in self.getbuildids(stream):
                 buildid = os.path.join(buildid[:2], buildid[2:])
-                for dbgfn in self.dbg_deb.filelist:
+                for dbgfn in self.dbg_fns:
                     if buildid in dbgfn:
                         assert pkgfn not in self.dbgfn_by_pkgfn or self.dbgfn_by_pkgfn[pkgfn] == dbgfn
+                        print(f'found {pkgfn} : {dbgfn}')
                         self.dbgfn_by_pkgfn[pkgfn] = dbgfn
 
         # map lines to offsets
         self.dwarf_by_pkgfn = {
-            pkgfn : DWARF(self.debfnstream(self.dbg_deb, dbgfn))
+            pkgfn : print(f'parsing {dbgfn} ...') or DWARF(self.debfnstream(self.dbg_deb, dbgfn))
             for pkgfn, dbgfn in self.dbgfn_by_pkgfn.items()
         }
 
@@ -186,6 +192,11 @@ class DWARF:
         #self.address_ranges_by_funcname = {}
         self.address_line_range_pairs_by_file = {}
         for cu in self.dwarfinfo.iter_CUs():
+            # each CU is roughly a sourcefile
+            # the sourcefile's name is in the top 'DIE' of the CU: cu.get_top_DIE().get_full_path()
+            #   each CU has line-address mappings for its sourcefile and its includes
+            #   as well as functions, identifier names, constant data, etc
+
             #for die in cu.iter_DIEs():
             #    try:
             #        if die.tag == 'DW_TAG_subprogram':
@@ -242,4 +253,4 @@ if __name__ == '__main__':
     for pkg in pkgs.packages:
         print(pkg.name, pkg.binaryfns)
         import pdb; pdb.set_trace()
-        break
+        print(pkg.binaryfns)
