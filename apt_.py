@@ -75,10 +75,6 @@ class Packages:
         cache.update(apt.progress.text.AcquireProgress())
         cache.open()
         self.cache = cache
-
-        # apt_pkg cache is self.cache._cache
-        # package binary and sources can be installed via Package object:
-        #   apt.Package(self.cache, self.cache._cache[name, arch])
     @property
     def packages(self, shuffler = random.shuffle, skip = 0):
         pkgnames = set(self.cache.keys())
@@ -88,60 +84,99 @@ class Packages:
             and pkgname + '-dbg' not in pkgnames
         ])
         pkgnames_list = [
-            (pkgname, arch, idx)
+            (pkgname, arch, version.version)
             for pkgname in pkgnames
             for arch in self.archs
             if (pkgname, arch) in self.cache._cache
-            for idx in range(len(apt.package.Package(self.cache, self.cache._cache[pkgname, arch]).versions))
+            for version in apt.package.Package(self.cache, self.cache._cache[pkgname, arch]).versions
         ]
         shuffler(pkgnames_list)
-        for pkgname, arch, idx in pkgnames_list[skip:]:
-            if (pkgname + '-dbgsym', arch) in self.cache._cache:
-                dbgname = pkgname + '-dbgsym'
-            elif (pkgname + '-dbg', arch) in self.cache._cache:
-                dbgname = pkgname + '-dbg'
+        yield from (Package(self, name, arch, ver) for name, arch, ver in pkgnames_list[skip:])
+        for pkgname, arch, version in pkgnames_list[skip:]:
+            #try:
+                pkg = Package(self, pkgname, arch, ver)
+            #except Exception as e:
+            #    print(e)
+            #    import pdb; pdb.set_trace()
+            #    continue
+            #else:
+                yield pkg
+
+class Package:
+    def __init__(self, packages, name, arch, version):
+        if (name + '-dbgsym', arch) in packages.cache._cache:
+            self.dbg = apt.package.Package(packages.cache, packages.cache._cache[name + '-dbgsym', arch])
+        else:
+            self.dbg = apt.package.Package(packages.cache, packages.cache._cache[name + '-dbg', arch])
+        self.pkg = apt.package.Package(packages.cache, packages.cache._cache[name, arch])
+        self.pkgver = { ver.version: ver for ver in self.pkg.versions }[version]
+        self.dbgver = { ver.version: ver for ver in self.dbg.versions }[version]
+
+        self.name = self.dbgver.source_name
+        self.version = version
+
+        self.pkg_dir = os.path.join(packages.cache_dir, self.dbgver.source_name + '-' + self.dbgver.source_version)
+
+        if not os.path.exists(self.pkg_dir):
+            os.makedirs(self.pkg_dir, exist_ok=True)
+            if self.dbgver.origins[0].site in packages.src_sites:
+                self.srcver = self.dbgver
             else:
-                continue
-            pkg = apt.package.Package(self.cache, self.cache._cache[pkgname, arch])
-            dbgpkg = apt.package.Package(self.cache, self.cache._cache[dbgname, arch])
-            pkgver = pkg.versions[idx]
-            for dbgver in dbgpkg.versions:
-                if dbgver.version == pkgver.version:
-                    yield ((pkg, pkgver), (dbgpkg, dbgver))
-                    break
-    def extract(self, pkg, dbg):
-        pkg, pkgver = pkg
-        dbg, dbgver = dbg
-        os.makedirs(os.path.join(self.root_dir, 'dl', pkg.fullname), exist_ok=True)
-        binary_debfn = pkgver.fetch_binary(
-                destdir = os.path.join(self.root_dir, 'dl', pkg.fullname),
+                self.srcver = self.pkgver
+            self.src_path = self.srcver.fetch_source(
+                destdir = self.pkg_dir,
+                unpack = True,
                 progress = apt.progress.text.AcquireProgress()
-        )
-        debug_debfn = dbgver.fetch_binary(
-                destdir = os.path.join(self.root_dir, 'dl', pkg.fullname),
-                progress = apt.progress.text.AcquireProgress()
-        )
-        source_dir = os.path.join(self.root_dir, 'dl', dbgver.source_name + '-' + dbgver.source_version)
-        if not os.path.exists(source_dir):
-            os.makedirs(source_dir)
-            if dbgver.origins[0].site in self.src_sites:
-                srcver = dbgver
-            else:
-                srcver = pkgver
-            source_path = srcver.fetch_source(
-                    destdir = source_dir,
-                    unpack = True,
-                    progress = apt.progress.text.AcquireProgress()
             )
-        self.debdwarf(debug_debfn)
-        return binary_debfn, debug_debfn, source_path
-    def debdwarf(self, debfn):
-        deb = apt.debfile.DebPackage(debfn)
-        for filename in deb.filelist:
-            if filename.endswith('.debug'):
-                elfbytes = deb._debfile.data.extractdata(filename)
-                dwarf = DWARF(io.BytesIO(elfbytes))
-                print(filename, dwarf.filenames)
+        self.pkg_deb = self.pkgver.fetch_binary(
+            destdir = self.pkg_dir,
+            progress = apt.progress.text.AcquireProgress()
+        )
+        self.dbg_deb = self.dbgver.fetch_binary(
+            destdir = self.pkg_dir,
+            progress = apt.progress.text.AcquireProgress()
+        )
+        self.pkg_deb = apt.debfile.DebPackage(self.pkg_deb)
+        self.dbg_deb = apt.debfile.DebPackage(self.dbg_deb)
+
+        # map dbg info to binaries
+        self.dbgfn_by_pkgfn = {}
+        for pkgfn in self.pkg_deb.filelist:
+            stream = self.debfnstream(self.pkg_deb, pkgfn)
+            for buildid in self.getbuildids(stream):
+                buildid = os.path.join(buildid[:2], buildid[2:])
+                for dbgfn in self.dbg_deb.filelist:
+                    if buildid in dbgfn:
+                        assert pkgfn not in self.dbgfn_by_pkgfn or self.dbgfn_by_pkgfn[pkgfn] == dbgfn
+                        self.dbgfn_by_pkgfn[pkgfn] = dbgfn
+
+        # map lines to offsets
+        self.dwarf_by_pkgfn = {
+            pkgfn : DWARF(self.debfnstream(self.dbg_deb, dbgfn))
+            for pkgfn, dbgfn in self.dbgfn_by_pkgfn.items()
+        }
+
+    @property
+    def binaryfns(self):
+        return [*self.dwarf_by_pkgfn.keys()]
+
+    @staticmethod
+    def debfnstream(deb, fn):
+        return io.BytesIO(deb._debfile.data.extractdata(fn))
+
+    @staticmethod
+    def getbuildids(stream):
+        try:
+            elffile = elftools.elf.elffile.ELFFile(stream)
+        except elftools.common.exceptions.ELFError:
+            return []
+        return [
+            note['n_desc']
+            for sect in elffile.iter_sections() 
+            if isinstance(sect, elftools.elf.sections.NoteSection)
+            for note in sect.iter_notes()
+            if note['n_type'] == 'NT_GNU_BUILD_ID'
+        ]
 
 class DWARF:
     # based on https://github.com/eliben/pyelftools/blob/master/examples/dwarf_decode_address.py 2021-01
@@ -204,6 +239,7 @@ class DWARF:
                 
 if __name__ == '__main__':
     pkgs = Packages()
-    for pkg, dbg in pkgs.packages:
-        pkgs.extract(pkg, dbg)
+    for pkg in pkgs.packages:
+        print(pkg.name, pkg.binaryfns)
+        import pdb; pdb.set_trace()
         break
