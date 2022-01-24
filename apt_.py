@@ -140,7 +140,7 @@ class Package:
         self.pkg_deb = apt.debfile.DebPackage(self.pkg_deb)
         self.pkg_fns = self.pkg_deb.filelist
 
-        print(f'Parsing {self.dbg_deb.filename} ...')
+        print(f'Parsing {self.dbg_deb} ...')
         self.dbg_deb = apt.debfile.DebPackage(self.dbg_deb)
         self.dbg_fns = self.dbg_deb.filelist
 
@@ -196,6 +196,9 @@ class DWARF:
             # the sourcefile's name is in the top 'DIE' of the CU: cu.get_top_DIE().get_full_path()
             #   each CU has line-address mappings for its sourcefile and its includes
             #   as well as functions, identifier names, constant data, etc
+            full_srcpath = cu.get_top_DIE().get_full_path()
+            base_srcpath = os.path.basename(full_srcpath)
+            self.address_line_range_pairs_by_file[full_srcpath] = []
 
             #for die in cu.iter_DIEs():
             #    try:
@@ -230,10 +233,13 @@ class DWARF:
                     continue
                 # Looking for a range of addresses in two consecutive states.
                 if prevstate:
-                    filename = lineprog['file_entry'][prevstate.file - 1].name
-                    if filename not in self.address_line_range_pairs_by_file:
-                        self.address_line_range_pairs_by_file[filename] = []
-                    self.address_line_range_pairs_by_file[filename].append(((prevstate.address, entry.state.address), (prevstate.line, entry.state.line)))
+                    filename = lineprog['file_entry'][prevstate.file - 1].name.decode()
+                    #if filename not in self.address_line_range_pairs_by_file:
+                    #    self.address_line_range_pairs_by_file[filename] = []
+                    #import pdb; pdb.set_trace()
+                    if filename == base_srcpath: # skipping code in header files for now
+                        filename = full_srcpath
+                        self.address_line_range_pairs_by_file[filename].append(((prevstate.address, entry.state.address), (prevstate.line, entry.state.line)))
                 if entry.state.end_sequence:
                     # For the state with `end_sequence`, `address` means the address
                     # of the first byte after the target machine instruction
@@ -247,10 +253,13 @@ class DWARF:
     @property
     def filenames(self):
         return [*self.address_line_range_pairs_by_file.keys()]
+
+    #class CompilationUnit:
+    #    def __init__(self, dwarf, cu):
                 
 if __name__ == '__main__':
     pkgs = Packages()
     for pkg in pkgs.packages:
         print(pkg.name, pkg.binaryfns)
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         print(pkg.binaryfns)
