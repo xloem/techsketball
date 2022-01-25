@@ -1,4 +1,12 @@
-import io, os, random, tempfile
+import bisect, collections, io, os, random, tempfile
+
+# note: there is a lot of data here.
+# it would make sense to split out download and deb parsing
+# prior to dwarf loading.  then a big database could be made for arbitrary reuse.
+
+# note: DWARF includes more information than just code sourcelines,
+# such as data structure information.  with more familiarity or study of DWARF,
+# this could further improve.
 
 tempfile.tempdir = os.environ.get('TMPDIR')
 
@@ -6,6 +14,22 @@ import keys
 
 import apt, apt.cache, apt.debfile
 import elftools.elf.elffile # pyelftools
+
+def debfnstream(deb, fn):
+    return io.BytesIO(deb._debfile.data.extractdata(fn))
+
+def getbuildids(stream):
+    try:
+        elffile = elftools.elf.elffile.ELFFile(stream)
+    except elftools.common.exceptions.ELFError:
+        return []
+    return [
+        note['n_desc']
+        for sect in elffile.iter_sections() 
+        if isinstance(sect, elftools.elf.sections.NoteSection)
+        for note in sect.iter_notes()
+        if note['n_type'] == 'NT_GNU_BUILD_ID'
+    ]
 
 class Packages:
     def __init__(self, sources = (
@@ -123,11 +147,20 @@ class Package:
                 self.srcver = self.dbgver
             else:
                 self.srcver = self.pkgver
+            #import pdb; pdb.set_trace()
             self.src_path = self.srcver.fetch_source(
                 destdir = self.pkg_dir,
                 unpack = True,
                 progress = apt.progress.text.AcquireProgress()
             )
+        # walk the src tree to list src paths
+        self.srcpaths_by_file = {}
+        for dirpath, dirnames, filenames in os.walk(self.src_path):
+            dirpath = dirpath[len(self.pkg_dir):]
+            for filename in filenames:
+                if filename not in self.srcpaths_by_file:
+                    self.srcpaths_by_file[filename] = []
+                self.srcpaths_by_file[filename].append(os.path.join(dirpath, filename))
         self.pkg_deb = self.pkgver.fetch_binary(
             destdir = self.pkg_dir,
             progress = apt.progress.text.AcquireProgress()
@@ -147,58 +180,108 @@ class Package:
         # map dbg info to binaries
         self.dbgfn_by_pkgfn = {}
         for pkgfn in self.pkg_fns:
-            stream = self.debfnstream(self.pkg_deb, pkgfn)
-            for buildid in self.getbuildids(stream):
+            renamed_fn = os.path.join('usr/lib/debug', pkgfn)
+            if renamed_fn in self.dbg_fns:
+                dbgfn = renamed_fn
+                assert pkgfn not in self.dbgfn_by_pkgfn or self.dbgfn_by_pkgfn[pkgfn] == dbgfn
+                print(f'found {pkgfn} : {dbgfn}')
+                self.dbgfn_by_pkgfn[pkgfn] = dbgfn
+                continue
+            stream = debfnstream(self.pkg_deb, pkgfn)
+            for buildid in getbuildids(stream):
                 buildid = os.path.join(buildid[:2], buildid[2:])
                 for dbgfn in self.dbg_fns:
                     if buildid in dbgfn:
                         assert pkgfn not in self.dbgfn_by_pkgfn or self.dbgfn_by_pkgfn[pkgfn] == dbgfn
                         print(f'found {pkgfn} : {dbgfn}')
                         self.dbgfn_by_pkgfn[pkgfn] = dbgfn
+        assert len(self.dbgfn_by_pkgfn) > 0
 
         # map lines to offsets
         self.dwarf_by_pkgfn = {
-            pkgfn : print(f'parsing {dbgfn} ...') or DWARF(self.debfnstream(self.dbg_deb, dbgfn))
+            pkgfn : print(f'parsing {dbgfn} ...') or DWARF(dbgfn, debfnstream(self.dbg_deb, dbgfn))
             for pkgfn, dbgfn in self.dbgfn_by_pkgfn.items()
         }
+
+        # map compilation units to source code
+        self.srcpaths_by_dwarf_fn = {}
+        for dwarf in self.dwarf_by_pkgfn.values():
+            ### for each dwarf filename, we find where it is in the source tree, or if it isn't.
+            ### if it's present multiple times, we pick the longest matching suffix.
+            for fn in dwarf.filenames:
+                basefn = os.path.basename(fn)
+                srcpaths = self.srcpaths_by_file.get(basefn, [])
+                longest = 0
+                revfn = fn[::-1]
+                match = None
+                for srcpath in srcpaths:
+                    cand = os.path.commonprefix((srcpath[::-1], revfn))
+                    if len(cand) > longest:
+                        match = cand
+                        longest = len(match)
+                #    matchlength = # find suffix match length
+                #if os.path.basename(fn) in self.srcpaths_by_file:
+                if match is not None:
+                    match = os.path.join(self.src_path, match[::-1])
+                    self.srcpaths_by_dwarf_fn[(dwarf, fn)] = match
 
     @property
     def binaryfns(self):
         return [*self.dwarf_by_pkgfn.keys()]
 
-    @staticmethod
-    def debfnstream(deb, fn):
-        return io.BytesIO(deb._debfile.data.extractdata(fn))
+    # this can include inlined functions too broadly 
+    def addresses_to_lines(self, binfn, addr_start, addr_end):
+        dwarf = self.dwarf_by_pkgfn[binfn]
+        fn_lines = dwarf.addresses_to_lines(addr_start, addr_end)
+        longest = 0
+        for fn, lines in fn_lines.items():
+            fn_srcpath = self.srcpaths_by_dwarf_fn.get((dwarf, fn))
+            if fn_srcpath is not None:
+                if lines[-1] - lines[0] >= longest:
+                    longest = lines[-1] - lines[0]
+                    range = (lines[0], lines[-1] + 1)
+                    srcpath = fn_srcpath
+        with open(srcpath, 'rt') as srcfile:
+            lines = srcfile.readlines()
+        return '\n'.join(lines[range[0]:range[1]])
 
-    @staticmethod
-    def getbuildids(stream):
-        try:
-            elffile = elftools.elf.elffile.ELFFile(stream)
-        except elftools.common.exceptions.ELFError:
-            return []
-        return [
-            note['n_desc']
-            for sect in elffile.iter_sections() 
-            if isinstance(sect, elftools.elf.sections.NoteSection)
-            for note in sect.iter_notes()
-            if note['n_type'] == 'NT_GNU_BUILD_ID'
-        ]
+# the problem with compilation units is they assume address bounds without code written to discern what they are
+#class CompilationUnit:
+#    @staticmethod
+#    def from_stream(stream):
+#        elffile = elftools.elf.elffile.ELFFile(stream)
+#        dwarfinfo = elffile.get_dwarf_info()
+#        return [
+#            CompilationUnit(
+#            for cu in dwarfinfo.iter_CUs()
+#        ]
+#    def __init__(self, bindeb, binfn, srcdeb, cu):
+#        self.bin_fn = binfn
+#        self.cu = cu
 
 class DWARF:
+    LineNumbering = collections.namedtuple('LineNumbering', 'fn addr_start addr_end line_start line_end cu lineprog entry')
     # based on https://github.com/eliben/pyelftools/blob/master/examples/dwarf_decode_address.py 2021-01
-    def __init__(self, stream):
+    def __init__(self, filename, stream):
         self.elffile = elftools.elf.elffile.ELFFile(stream)
         self.dwarfinfo = self.elffile.get_dwarf_info()
         #self.address_ranges_by_funcname = {}
         self.address_line_range_pairs_by_file = {}
+        self.line_numberings = []
         for cu in self.dwarfinfo.iter_CUs():
             # each CU is roughly a sourcefile
             # the sourcefile's name is in the top 'DIE' of the CU: cu.get_top_DIE().get_full_path()
             #   each CU has line-address mappings for its sourcefile and its includes
-            #   as well as functions, identifier names, constant data, etc
-            full_srcpath = cu.get_top_DIE().get_full_path()
-            base_srcpath = os.path.basename(full_srcpath)
-            self.address_line_range_pairs_by_file[full_srcpath] = []
+            #   as well as functions, identifier names, constant data, structures, etc
+            try:
+                full_srcpath = cu.get_top_DIE().get_full_path()
+                if full_srcpath.startswith('./'):
+                    full_srcpath = full_srcpath[2:]
+                base_srcpath = os.path.basename(full_srcpath)
+                self.address_line_range_pairs_by_file[full_srcpath] = []
+            except:
+                full_srcpath = None
+                base_srcpath = None
 
             #for die in cu.iter_DIEs():
             #    try:
@@ -226,6 +309,9 @@ class DWARF:
             #        continue
             # line programs show the file/lines for address ranges
             lineprog = self.dwarfinfo.line_program_for_CU(cu)
+            if lineprog is None:
+                continue
+                #import pdb; pdb.set_trace()
             prevstate = None
             for entry in lineprog.get_entries():
                 # We're interested in those entries where a new state is assigned
@@ -234,12 +320,13 @@ class DWARF:
                 # Looking for a range of addresses in two consecutive states.
                 if prevstate:
                     filename = lineprog['file_entry'][prevstate.file - 1].name.decode()
-                    #if filename not in self.address_line_range_pairs_by_file:
-                    #    self.address_line_range_pairs_by_file[filename] = []
-                    #import pdb; pdb.set_trace()
-                    if filename == base_srcpath: # skipping code in header files for now
+                    if filename == base_srcpath: # not skipping code in header files for now
                         filename = full_srcpath
-                        self.address_line_range_pairs_by_file[filename].append(((prevstate.address, entry.state.address), (prevstate.line, entry.state.line)))
+                    if filename not in self.address_line_range_pairs_by_file:
+                        self.address_line_range_pairs_by_file[filename] = []
+                    #import pdb; pdb.set_trace()
+                    self.address_line_range_pairs_by_file[filename].append(((prevstate.address, entry.state.address), (prevstate.line, entry.state.line)))
+                    self.line_numberings.append(DWARF.LineNumbering(filename, prevstate.address, entry.state.address, prevstate.line, entry.state.line, cu, lineprog, entry))
                 if entry.state.end_sequence:
                     # For the state with `end_sequence`, `address` means the address
                     # of the first byte after the target machine instruction
@@ -250,9 +337,27 @@ class DWARF:
                     prevstate = None
                 else:
                     prevstate = entry.state
+        self.line_numberings.sort(key = lambda line_numbering: line_numbering.addr_start)
+        self.line_numbering_addr_starts = [line_numbering.addr_start for line_numbering in self.line_numberings]
+        self.addr_start = min((line_numbering.addr_start for line_numbering in self.line_numberings))
+        self.addr_end = max((line_numbering.addr_end for line_numbering in self.line_numberings))
     @property
     def filenames(self):
         return [*self.address_line_range_pairs_by_file.keys()]
+
+    def addresses_to_lines(self, addr_start, addr_end):
+        # so really we want to map address ranges to files.
+        idx = bisect.bisect_left(self.line_numbering_addr_starts, addr_start)
+        filelines = {}
+        while self.line_numberings[idx].addr_end <= addr_end:
+            numbering = self.line_numberings[idx]
+            if numbering.fn not in filelines:
+                filelines[numbering.fn] = []
+            filelines[numbering.fn].append(numbering.line_start)
+            idx += 1
+        for list in filelines.values():
+            list.sort()
+        return filelines
 
     #class CompilationUnit:
     #    def __init__(self, dwarf, cu):
