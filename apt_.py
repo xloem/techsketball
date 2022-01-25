@@ -229,6 +229,12 @@ class Package:
     def binaryfns(self):
         return [*self.dwarf_by_pkgfn.keys()]
 
+    def srclines(self, dwarf, fn, line_start, line_end):
+        srcpath = self.srcpaths_by_dwarf_fn.get((dwarf, fn))
+        with open(srcpath, 'rt') as srcfile:
+            lines = srcfile.readlines()
+        return '\n'.join(lines[range[0]:range[1]])
+
     # this can include inlined functions too broadly 
     def addresses_to_lines(self, binfn, addr_start, addr_end):
         dwarf = self.dwarf_by_pkgfn[binfn]
