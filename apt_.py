@@ -274,6 +274,7 @@ class DWARF:
         #self.address_ranges_by_funcname = {}
         self.address_line_range_pairs_by_file = {}
         self.line_numberings = []
+    def parse(self):
         for cu in self.dwarfinfo.iter_CUs():
             # each CU is roughly a sourcefile
             # the sourcefile's name is in the top 'DIE' of the CU: cu.get_top_DIE().get_full_path()
