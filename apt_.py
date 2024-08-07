@@ -100,7 +100,9 @@ class Packages:
         cache.open()
         self.cache = cache
     @property
-    def packages(self, shuffler = random.shuffle, skip = 0):
+    def packages(self):
+        return self.iter_packages()
+    def iter_packages(self, shuffler = random.shuffle, skip = 0):
         pkgnames = set(self.cache.keys())
         pkgnames.difference_update([
             pkgname for pkgname in pkgnames
