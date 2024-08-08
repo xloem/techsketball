@@ -105,7 +105,7 @@ class Packages:
     @property
     def packages(self):
         return self.iter_packages()
-    def iter_packages(self, shuffler = random.shuffle, skip = 0):
+    def name_arch_vers(self, shuffler = random.shuffle, skip = 0):
         pkgnames = set(self.cache.keys())
         pkgnames.difference_update([
             pkgname for pkgname in pkgnames
@@ -113,23 +113,26 @@ class Packages:
             and pkgname + '-dbg' not in pkgnames
         ])
         pkgnames_list = [
-            (pkgname, arch, version.version)
+            [pkgname, arch, version.version]
             for pkgname in pkgnames
             for arch in self.archs
             if (pkgname, arch) in self.cache._cache
             for version in apt.package.Package(self.cache, self.cache._cache[pkgname, arch]).versions
         ]
         shuffler(pkgnames_list)
-        yield from (Package(self, name, arch, ver) for name, arch, ver in pkgnames_list[skip:])
-        for pkgname, arch, version in pkgnames_list[skip:]:
-            #try:
-                pkg = Package(self, pkgname, arch, ver)
-            #except Exception as e:
-            #    print(e)
-            #    import pdb; pdb.set_trace()
-            #    continue
-            #else:
-                yield pkg
+        return pkgnames_list[skip:]
+    def iter_packages(self, shuffler = random.shuffle, skip = 0):
+        pkgnames_list = self.name_arch_vers(shuffler, skip)
+        yield from (Package(self, name, arch, ver) for name, arch, ver in pkgnames_list)
+        #for pkgname, arch, version in pkgnames_list:
+        #    #try:
+        #        pkg = Package(self, pkgname, arch, ver)
+        #    #except Exception as e:
+        #    #    print(e)
+        #    #    import pdb; pdb.set_trace()
+        #    #    continue
+        #    #else:
+        #        yield pkg
 
 class Package:
     def __init__(self, packages, name, arch, version):
