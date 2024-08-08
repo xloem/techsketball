@@ -160,7 +160,7 @@ class Package:
             )
         # walk the src tree to list src paths
         self.srcpaths_by_file = {}
-        for dirpath, dirnames, filenames in os.walk(self.src_path):
+        for dirpath, dirnames, filenames in os.walk(self.pkg_dir):#self.src_path):
             dirpath = dirpath[len(self.pkg_dir):]
             for filename in filenames:
                 if filename not in self.srcpaths_by_file:
