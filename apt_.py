@@ -12,7 +12,7 @@ tempfile.tempdir = os.environ.get('TMPDIR')
 
 import keys
 
-import apt, apt.cache, apt.debfile
+import apt, apt.cache, apt.debfile # https://salsa.debian.org/apt-team/python-apt needs: github/julian-klode/triehash, apt-team/apt WITH_DOC=off WITH_TESTS=OFF, and dpkg.org which can be patched to remove po4a, /po/, and gettext, and version 1.18 works with perl<5.20
 import elftools.elf.elffile # pyelftools
 
 def debfnstream(deb, fn):
@@ -64,11 +64,14 @@ class Packages:
         apt.apt_pkg.init_config()
         apt.apt_pkg.config['Dir'] = self.root_dir
         self.state_dir = os.path.join(self.root_dir, 'var', 'lib')
+        apt.apt_pkg.config['Dir::State'] = self.state_dir
         os.makedirs(os.path.join(self.state_dir, 'lists', 'partial'), exist_ok = True)
         self.etc_dir = os.path.join(self.root_dir, 'etc', 'apt')
+        apt.apt_pkg.config['Dir::Etc'] = self.etc_dir
         os.makedirs(os.path.join(self.etc_dir, 'sources.list.d'), exist_ok = True)
         os.makedirs(os.path.join(self.etc_dir, 'preferences.d'), exist_ok = True)
         self.cache_dir = os.path.join(self.root_dir, 'var', 'cache')
+        apt.apt_pkg.config['Dir::Cache'] = self.cache_dir
         self.archs = set()
         self.src_sites = set()
         with open(os.path.join(self.etc_dir, 'sources.list'), 'wt') as sourceslist_file:
